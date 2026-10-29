@@ -1,0 +1,227 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Project Apex Telemetry</title>
+<style>
+:root{--fg:#eef3f8;--bg:rgba(8,12,18,.66);--ac:#3ddc97;color-scheme:dark light}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--fg:#eef3f8}}
+*{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#0b1118;color:var(--fg);font:12px system-ui,sans-serif;touch-action:none;user-select:none;-webkit-user-select:none}
+#gl{position:fixed;left:0;top:0;width:100%;height:100%;display:block}
+.p{position:fixed;background:var(--bg);border-radius:10px;padding:6px 9px;pointer-events:none}
+#spd{left:calc(env(safe-area-inset-left,0px) + 8px);top:calc(env(safe-area-inset-top,0px) + 8px);min-width:118px}
+#spd b{font-size:34px;line-height:1}#spd i{font-style:normal;opacity:.7}
+#rpm{height:6px;background:#2a3340;border-radius:3px;margin-top:4px;overflow:hidden}#rpm div{height:100%;width:0;background:var(--ac)}
+#lap{right:calc(env(safe-area-inset-right,0px) + 8px);top:calc(env(safe-area-inset-top,0px) + 8px);text-align:right;line-height:1.5;font-variant-numeric:tabular-nums}
+#tp{left:calc(env(safe-area-inset-left,0px) + 8px);top:calc(env(safe-area-inset-top,0px) + 126px);padding:4px}#tp canvas{display:block;width:104px;height:auto}
+#tel{left:calc(env(safe-area-inset-left,0px) + 8px);bottom:calc(env(safe-area-inset-bottom,0px) + 100px);padding:4px;display:none}
+#tel canvas{display:block;width:min(300px,62vw);height:auto}
+#map{right:calc(env(safe-area-inset-right,0px) + 8px);top:calc(env(safe-area-inset-top,0px) + 108px);padding:3px}
+#map canvas{display:block;width:80px;height:80px}
+#bar{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 6px);display:flex;gap:4px;z-index:5}
+#bar button{background:var(--bg);color:var(--fg);border:1px solid #fff3;border-radius:8px;padding:5px 7px;font:600 11px system-ui}
+#bar button.on{border-color:var(--ac);color:var(--ac)}
+#msg{position:fixed;left:50%;top:38%;transform:translateX(-50%);font:700 20px system-ui;text-shadow:0 2px 6px #000;pointer-events:none;text-align:center}
+.b{position:fixed;background:#0b1118aa;border:2px solid #fff4;border-radius:16px;display:flex;align-items:center;justify-content:center;font:700 14px system-ui;color:var(--fg);z-index:4}
+.b.a{background:#3ddc9755}.b.x{background:#ff4d5a55}
+#bL{left:calc(env(safe-area-inset-left,0px) + 10px);bottom:calc(env(safe-area-inset-bottom,0px) + 14px);width:84px;height:84px}
+#bR{left:calc(env(safe-area-inset-left,0px) + 104px);bottom:calc(env(safe-area-inset-bottom,0px) + 14px);width:84px;height:84px}
+#bB{right:calc(env(safe-area-inset-right,0px) + 108px);bottom:calc(env(safe-area-inset-bottom,0px) + 14px);width:84px;height:120px}
+#bG{right:calc(env(safe-area-inset-right,0px) + 10px);bottom:calc(env(safe-area-inset-bottom,0px) + 14px);width:90px;height:150px}
+#bX{width:54px;height:44px;right:calc(env(safe-area-inset-right,0px) + 10px);bottom:calc(env(safe-area-inset-bottom,0px) + 224px)}
+#bD,#bU{width:54px;height:44px;bottom:calc(env(safe-area-inset-bottom,0px) + 160px)}
+#bD{right:calc(env(safe-area-inset-right,0px) + 108px)}#bU{right:calc(env(safe-area-inset-right,0px) + 10px);bottom:calc(env(safe-area-inset-bottom,0px) + 170px)}
+</style></head><body>
+<canvas id="gl"></canvas>
+<div class="p" id="spd"><b id="kmh">0</b> <i>km/h</i><div>Marcha <b id="gr" style="font-size:16px">1</b> · <span id="rp">0</span> rpm</div><div id="rpm"><div></div></div><div id="aer" style="margin-top:3px;opacity:.85"></div></div>
+<div class="p" id="lap"></div>
+<div class="p" id="tp"><canvas id="tpc" width="150" height="124"></canvas></div>
+<div class="p" id="tel"><canvas id="tc" width="300" height="200"></canvas></div>
+<div class="p" id="map"><canvas id="mc" width="160" height="160"></canvas></div>
+<div id="bar"><button id="k1">CAM</button><button id="k2">TELEM</button><button id="k3" class="on">ASSIST</button><button id="k4" class="on">AUTO</button><button id="k5">MODO</button><button id="k6">RESET</button></div>
+<div id="msg"></div>
+<div class="b" id="bL" data-k="L">◀</div><div class="b" id="bR" data-k="R">▶</div>
+<div class="b x" id="bB" data-k="B">FREIO</div><div class="b a" id="bG" data-k="G">ACEL</div>
+<div class="b" id="bD" data-k="D">▼</div><div class="b" id="bU" data-k="U">▲</div><div class="b" id="bX" data-k="X">R</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const $=q=>document.querySelector(q),M=Math,PI=M.PI,hy=M.hypot,cl=(x,a,b)=>x<a?a:x>b?b:x,cs=M.cos,sn=M.sin,ex=M.exp;
+//PHYS_START
+// ============ PISTA: spline Catmull-Rom fechada, reamostrada a passo constante, 4,2 km ============
+const CP=[[0,0,0],[300,0,0],[600,0,0],[900,0,.3],[1020,20,1],[1110,100,2],[1130,200,4],[1130,300,8],[1120,380,12],[1090,450,15],[1075,490,17],[1040,505,18.5],[1005,490,19],[990,450,19],[960,395,14],[1010,340,17],[950,285,11],[1000,235,14],[950,190,8],[860,190,7],[760,210,6],[680,175,5.5],[600,205,5],[500,195,4],[350,200,3],[200,205,2.5],[60,210,2],[-50,190,1.5],[-120,130,1],[-100,50,.5],[-40,8,.2]];
+const raw=[],nC=CP.length,c4=(a,i,t)=>{const p0=CP[(i+nC-1)%nC][a],p1=CP[i][a],p2=CP[(i+1)%nC][a],p3=CP[(i+2)%nC][a],t2=t*t,t3=t2*t;return .5*(2*p1+(p2-p0)*t+(2*p0-5*p1+4*p2-p3)*t2+(3*p1-p0-3*p2+p3)*t3)};
+for(let i=0;i<nC;i++)for(let k=0;k<30;k++)raw.push([c4(0,i,k/30),c4(1,i,k/30),c4(2,i,k/30)]);
+const cum=[0];for(let i=1;i<=raw.length;i++){const a=raw[i-1],b=raw[i%raw.length];cum.push(cum[i-1]+hy(b[0]-a[0],b[1]-a[1]))}
+const LR=cum[cum.length-1],SC=4200/LR,N=1050,DS=4200/N,TX=[],TZ=[],TY=[],tx=[],tz=[],gr=[],cv=[];
+for(let i=0,j=0;i<N;i++){const s=i/N*LR;while(cum[j+1]<s)j++;const a=raw[j],b=raw[(j+1)%raw.length],u=(s-cum[j])/(cum[j+1]-cum[j]);TX[i]=(a[0]+(b[0]-a[0])*u)*SC;TZ[i]=(a[1]+(b[1]-a[1])*u)*SC;TY[i]=(a[2]+(b[2]-a[2])*u)*SC}
+for(let i=0;i<N;i++){const p=(i+1)%N,q=(i+N-1)%N,dx=TX[p]-TX[q],dz=TZ[p]-TZ[q],l=hy(dx,dz);tx[i]=dx/l;tz[i]=dz/l;gr[i]=(TY[p]-TY[q])/(2*DS)}
+for(let i=0;i<N;i++){const a=(i+N-3)%N,b=(i+3)%N;cv[i]=M.abs(tx[a]*tz[b]-tz[a]*tx[b])}
+let hint=0,nO=0;function near(x,z){let best=1e18,bi=hint;for(let k=-40;k<=40;k++){const i=(hint+k+N)%N,d=(x-TX[i])**2+(z-TZ[i])**2;if(d<best){best=d;bi=i}}
+if(best>2500)for(let i=0;i<N;i++){const d=(x-TX[i])**2+(z-TZ[i])**2;if(d<best){best=d;bi=i}}
+hint=bi;nO=(x-TX[bi])*-tz[bi]+(z-TZ[bi])*tx[bi];return bi}
+// ============ VEÍCULO: Apex Spec-R ============
+const m=1050,g=9.81,L=2.55,aF=.56*L,bR=.44*L,hC=.42,Iz=1250,tf=1.55,trk=1.58,rho=1.225,Rw=[.3266,.3266,.332,.332],Kw=140000,Iw=1.3,TA=24,CLA=2.4,CDA=.72;
+const RPMT=[[0,0],[800,120],[1500,200],[2500,285],[3500,345],[4500,372],[5200,380],[6500,372],[7800,346],[8300,300],[9000,200]];
+function tq(r){for(let i=1;i<RPMT.length;i++)if(r<=RPMT[i][0]){const a=RPMT[i-1],b=RPMT[i];return a[1]+(b[1]-a[1])*(r-a[0])/(b[0]-a[0])}return 0}
+const GR=[0,3.15,2.2,1.65,1.3,1.06,.88],FD=3.7,Fst=[m*g*bR/L/2,m*g*bR/L/2,m*g*aF/L/2,m*g*aF/L/2];
+const car={assist:true,auto:true,bb:.6,hrF:.08,hrR:.07,ge:1,bot:0,ffb:0,sig:0,odo:0,kR:0};
+function reset(i){const k=i===undefined?N-4:i;Object.assign(car,{x:TX[k],z:TZ[k],psi:M.atan2(tz[k],tx[k]),u:0,v:0,r:0,om:[0,0,0,0],we:110,gear:1,shT:0,th:0,br:0,st:0,dlt:0,sh1:0,sh2:0,Lw:0,tin:0,axf:0,ayf:0,ci:k,off:0,F:Fst.slice(),X:[0,0,0,0],zr:[0,0,0,0],zp:[0,0,0,0],
+w:[0,1,2,3].map(j=>({x:j<2?aF:-bR,y:(j%2?-1:1)*(j<2?tf:trk)/2,Ts:84,Tt:80,Tc:72,z:[84,84,84],P:30,wear:0,heat:0,Fy:0,Fz:Fst[j],k:0,cam:0,toe:0,ang:0,d:0,hist:[],xm:0,xv:0,sig:0}))});hint=k}
+function step(dt){const c=car,u=c.u,v=c.v,r=c.r,V2=u*u+v*v,V=M.sqrt(V2),q=.5*rho*V2,W=m*g;
+c.ci=near(c.x,c.z);const ci=c.ci,off=nO,ao=M.abs(off);c.off=off;c.odo+=V*dt;
+const surf=ao<6.4?1:ao<8.2?.95:ao<16?.78:.65,kerb=ao>5.4&&ao<8.2,ph=c.odo;
+for(let i=0;i<4;i++){let z=.0016*sn(.9*ph+i*2.1)+.0009*sn(2.7*ph+i*1.3);if(kerb&&(i%2===0)===(off>0))z+=.014*M.abs(sn(ph*9.5+i));c.zp[i]=c.zr[i];c.zr[i]+=(z-c.zr[i])*(1-ex(-dt/.014))}
+// altura de rodagem + efeito solo (colapso abrupto ao raspar)
+const hrF=.095-(c.F[0]+c.F[1])/(2*Kw)-(c.zr[0]+c.zr[1])/2,hrR=.095-(c.F[2]+c.F[3])/(2*Kw)-(c.zr[2]+c.zr[3])/2;c.hrF=hrF;c.hrR=hrR;
+const ge=hrR>.034?1+.6*cl((.07-hrR)/.04,-.25,1):.45;c.ge=ge;c.bot=hrR<=.034||hrF<.028;
+const DF=q*CLA,Df=DF*.42*(hrF>.028?1:.6),Dr=DF*.58*ge;c.df=Df+Dr;
+// transferência de carga (longitudinal + lateral com barra estabilizadora 55/45) → suspensão com amortecedor 4 vias
+const dl=m*c.axf*hC/L,dF=m*c.ayf*hC*.55/tf,dR=m*c.ayf*hC*.45/trk,Wf=W*bR/L,Wr=W*aF/L;
+const q0=[(Wf-dl+Df)/2-dF,(Wf-dl+Df)/2+dF,(Wr+dl+Dr)/2-dR,(Wr+dl+Dr)/2+dR];
+let Fxs=0,Fys=0,Mz=0,ffbT=0,sm=0,kr=0;
+// powertrain: motor inercial → embreagem → flex do semieixo → LSD
+const R=(c.gear<0?-5.5:GR[c.gear])*FD,rpm=c.we*30/PI,wr=(c.om[2]+c.om[3])/2;c.shT-=dt;
+const th=c.th*(c.assist?cl(1-(c.kR-.14)*9,.15,1):1),sl=c.we-wr*R,lau=R&&sl>15&&c.gear<=2&&u<9,thE=lau&&c.th>.05?M.max(th,.9):th,cap=c.shT>0?0:lau?(c.th>.05?M.max(.8*tq(rpm),130):0):420*cl(-c.shT/.2,0,1)+100;
+let Te=thE*tq(rpm)-(1-thE)*(25+.022*rpm)+(rpm<1100?(1100-rpm)*.12:0);if(rpm>8250)Te=-40;
+const Tc=R?cl((sl+dt*(Te/.22+R*c.Lw/(2*Iw)))/(dt*(1/.22+R*R/(2*Iw))),-cap,cap):0;
+c.we=M.max(60,c.we+(Te-Tc)*dt/.22);
+const Tin=Tc*R,dTi=Tin-c.tin;c.tin=Tin;c.sh2+=.5*dTi*70;c.sh2+=(-4900*c.sh1-25*c.sh2)*dt;c.sh1+=c.sh2*dt;const Ts=Tin+c.sh1,dw=c.om[2]-c.om[3];let lw=2*c.br*(2000*(1-c.bb)/.4);
+const Tl=(60+(Ts>0?.35:.12)*M.abs(Ts))*M.tanh(dw*1.5),Td=[0,0,Ts/2-Tl/2,Ts/2+Tl/2];
+let dL=0,dRr=0;if(M.abs(c.dlt)>1e-4){const Rt=L/M.tan(c.dlt);dL=M.atan(L/(Rt-tf/2));dRr=M.atan(L/(Rt+tf/2))}
+const roll=c.ayf/g*1.1;
+for(let i=0;i<4;i++){const w=c.w[i],fr=i<2,sd=w.y>0?1:-1,Rr=Rw[i];
+const xo=w.xm/1000,err=q0[i]-Fst[i],e2=err/Kw-c.X[i],vc=M.abs(e2)/.02,cL=e2>0?3500:6000,cH=e2>0?1400:2200,cef=vc<.1?cL:(cL*.1+cH*(vc-.1))/vc,tau=M.max(.004,cef/Kw);
+c.X[i]+=e2*(1-ex(-dt/tau));w.xv=w.xv*.98+(c.X[i]*1000-w.xm)/dt/1000*.02;w.xm=c.X[i]*1000;
+const Fz=M.max(60,Fst[i]+Kw*c.X[i]+.5*Kw*c.zr[i]+600*(c.zr[i]-c.zp[i])/dt*.02);c.F[i]=Fz;w.Fz=Fz;
+w.cam=(fr?-2.6:-1.9)-.2*w.xm-.7*roll*sd;w.toe=(fr?-.08:.12)+.012*w.xm;
+const d=(fr?(i?dRr:dL):0)-sd*w.toe*.01745;w.d=d;
+const vx=u-r*w.y,vy=v+r*w.x,vl=vx*cs(d)+vy*sn(d),vt=-vx*sn(d)+vy*cs(d),den=M.max(M.abs(vl),1.5),k=cl((c.om[i]*Rr-vl)/den,-1.5,1.5),tn=vt/den;w.k=k;
+// pneu: janela térmica 85–105 °C, pressão, camber, carga, desgaste
+const dT=M.abs(w.Ts-95)-10,tfk=dT>0?M.max(.72,1-.0009*dT*dT):1,pf=1-.012*M.abs(w.P-30.5),cf=1-.012*M.abs(w.cam+2.4),ls=cl(1-.09*(Fz-3000)/3000,.7,1.25);
+const mu=(fr?1.06:1)*1.8*tfk*pf*cf*ls*surf*(1-w.wear*.18),kh=k/.12,ah=tn/(.13*(1+.003*(80-w.Tc))),sg=M.max(hy(kh,ah),1e-5);
+const X=1.35*sg,f=sn(1.55*M.atan(X+.6*(X-M.atan(X)))),D=mu*Fz*f,Fxw=D*kh/sg,Fyw=-D*ah/sg;w.sig=sg;sm=M.max(sm,sg);w.Fy=Fyw;
+if(fr)ffbT-=Fyw*(.05*cl(1-M.abs(ah)/1.7,0,1)+.038);else{kr+=(c.gear<0?-k:k)/2;lw+=Fxw*Rr+.012*Fz*Rr*M.tanh(c.om[i]*.5)}
+w.heat+=(M.abs(Fxw*(c.om[i]*Rr-vl))+M.abs(Fyw*vt))*dt;
+const fx=Fxw*cs(d)-Fyw*sn(d),fy=Fxw*sn(d)+Fyw*cs(d);Fxs+=fx;Fys+=fy;Mz+=w.x*fy-w.y*fx;
+// dinâmica da roda: torque motor/LSD − tração − resistência; freio sem ABS (opcional)
+let om=c.om[i]+(Td[i]-Fxw*Rr-.012*Fz*Rr*M.tanh(c.om[i]*.5))*dt/Iw;
+let Tb=c.br*(fr?3000*c.bb/.6:2000*(1-c.bb)/.4);if(c.assist&&k<-.17)Tb*=.12;
+const bd=Tb*dt/Iw;om=M.sign(om)*M.max(0,M.abs(om)-bd);c.om[i]=om}
+c.kR=kr;c.Lw=lw;c.sig=sm;c.ffb+=(ffbT-c.ffb)*(1-ex(-dt/.004));
+// corpo rígido 3GDL (u,v,r) + aero, arrasto, inclinação, estabilização a baixa velocidade
+const gs=gr[ci],Fsx=-W*gs*tx[ci],Fsz=-W*gs*tz[ci],dg=.5*rho*CDA*(1+.06*(ge-1));
+let Fx=Fxs-dg*V*u+Fsx*cs(c.psi)+Fsz*sn(c.psi)-(c.bot?600*M.tanh(u):0),Fy=Fys-dg*1.8*V*v-Fsx*sn(c.psi)+Fsz*cs(c.psi);
+if(V<3){Fy-=m*v*12*(1-V/3);Mz-=Iz*r*8*(1-V/3)}
+if(c.assist&&V>6){const rd=cl(u*M.tan(c.dlt)/L,-16/V,16/V),ex=r-rd;if(M.abs(r)>M.abs(rd)+.12&&r*ex>0)Mz-=Iz*2.2*ex}
+c.u+=(Fx/m+v*r)*dt;c.v+=(Fy/m-u*r)*dt;c.r+=Mz/Iz*dt;c.psi+=c.r*dt;
+c.x+=(u*cs(c.psi)-v*sn(c.psi))*dt;c.z+=(u*sn(c.psi)+v*cs(c.psi))*dt;
+const a=1-ex(-dt/.05);c.axf+=(Fx/m-c.axf)*a;c.ayf+=(Fy/m-c.ayf)*a}
+function thermal(dt){const c=car,V=hy(c.u,c.v);for(const w of c.w){const Ph=w.heat/dt;w.heat=0;const gz=M.abs(c.off)>8.2?3:1,hs=(8+.9*V)*gz,hc=4+.25*V,Pc=w.Fz*V*.012;
+w.Ts=cl(w.Ts+dt*(.75*Ph-260*(w.Ts-w.Tt)-hs*(w.Ts-TA))/800,TA,140);
+w.Tt=cl(w.Tt+dt*(.25*Ph+260*(w.Ts-w.Tt)-130*(w.Tt-w.Tc))/6000,TA,170);
+w.Tc=cl(w.Tc+dt*(Pc+130*(w.Tt-w.Tc)-hc*(w.Tc-TA))/18000,TA,150);
+w.P=26*(.7*(w.Tc+273)+.3*(w.Tt+273))/(TA+273);w.wear=M.min(1,w.wear+dt*Ph*(1+M.max(0,w.Tt-105)/25)*8e-8);
+const sr=cl(w.Fy/(w.Fz*1.4),-1,1),rs=9*M.max(0,sr),ls=9*M.max(0,-sr),inn=3.5*(-w.cam-1),left=w.y>0,tg=left?[ls,0,rs+inn]:[rs,0,ls+inn],a=1-ex(-dt/.8);
+for(let k=0;k<3;k++)w.z[k]+=(w.Ts+tg[k]-w.z[k])*a}}
+//PHYS_END
+</script>
+<script>
+// ============ RENDER (Three.js) ============
+const cv3=$("#gl"),R3=new THREE.WebGLRenderer({canvas:cv3,antialias:true});R3.setPixelRatio(M.min(devicePixelRatio,2));R3.shadowMap.enabled=true;
+const S=new THREE.Scene(),CAM=new THREE.PerspectiveCamera(68,1,.2,1800);
+{const c=document.createElement("canvas");c.width=4;c.height=256;const x=c.getContext("2d"),gd=x.createLinearGradient(0,0,0,256);gd.addColorStop(0,"#3b78c4");gd.addColorStop(.7,"#a9cdea");gd.addColorStop(1,"#dfeaf2");x.fillStyle=gd;x.fillRect(0,0,4,256);S.background=new THREE.CanvasTexture(c)}
+S.fog=new THREE.Fog(0xcfdde8,250,1300);S.add(new THREE.HemisphereLight(0xdfeeff,0x4a6a3a,.85));
+const sun=new THREE.DirectionalLight(0xfff0d8,1.15);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);const sc=sun.shadow.camera;sc.left=sc.bottom=-26;sc.right=sc.top=26;sc.far=120;S.add(sun,sun.target);
+const gp=new THREE.Mesh(new THREE.PlaneGeometry(6000,6000).rotateX(-PI/2),new THREE.MeshLambertMaterial({color:0x4d7a3a}));gp.position.set(500,-2.4,-250);S.add(gp);
+function strip(a,b,col,dy,abs,po){const P=[],C=[],I=[];for(let i=0;i<=N;i++){const k=i%N,nx=-tz[k],nz=tx[k];for(const o of[a,b]){P.push(TX[k]+nx*o,(abs!==undefined&&o===b)?abs:TY[k]+dy,-(TZ[k]+nz*o));C.push(...col(i,k,o))}}
+for(let i=0;i<N;i++){const j=i*2;I.push(j,j+1,j+2,j+1,j+3,j+2)}const G=new THREE.BufferGeometry();G.setAttribute("position",new THREE.Float32BufferAttribute(P,3));G.setAttribute("color",new THREE.Float32BufferAttribute(C,3));G.setIndex(I);G.computeVertexNormals();
+const me=new THREE.Mesh(G,new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-po,polygonOffsetUnits:-po}));me.receiveShadow=true;S.add(me)}
+const hs=i=>{const h=sn(i*12.9898)*43758.5;return h-M.floor(h)},asp=(i)=>{const v=.15+hs(i)*.025;return[v,v,v*1.04]},WH=6;
+strip(-WH,WH,(i)=>asp(i>>1),0,undefined,2);
+for(const sd of[1,-1]){strip(sd*WH,sd*(WH+1.5),(i,k)=>cv[k]>.05?(i%2?[.85,.1,.1]:[.95,.95,.95]):[.9,.9,.9],.015,undefined,4);
+strip(sd*(WH+1.5),sd*(WH+20),(i)=>[.22+hs(i)*.04,.46+hs(i)*.05,.18],-.04,undefined,1);
+strip(sd*(WH+20),sd*(WH+90),(i)=>[.2,.4,.16],-.05,-2.4,0);
+strip(sd*(WH-.35),sd*(WH-.1),()=>[.95,.95,.95],.02,undefined,5)}
+{const k=0,gnt=new THREE.Group(),mt=new THREE.MeshLambertMaterial({color:0x222a33});for(const s of[-1,1]){const p=new THREE.Mesh(new THREE.BoxGeometry(.6,6,.6),mt);p.position.set(0,3,s*(WH+1));gnt.add(p)}
+const bm=new THREE.Mesh(new THREE.BoxGeometry(.8,1.2,2*WH+3),new THREE.MeshBasicMaterial({color:0xe8e8e8}));bm.position.y=6;gnt.add(bm);
+const ln=new THREE.Mesh(new THREE.BoxGeometry(1.2,.03,2*WH),new THREE.MeshBasicMaterial({color:0xffffff}));ln.position.y=.05;gnt.add(ln);
+gnt.position.set(TX[k],TY[k],-TZ[k]);gnt.rotation.y=M.atan2(tz[k],tx[k]);S.add(gnt)}
+// carro procedural
+const CG=new THREE.Group(),bodyM=new THREE.MeshStandardMaterial({color:0xe5322b,metalness:.55,roughness:.35}),dk=new THREE.MeshStandardMaterial({color:0x14181d,roughness:.7});
+const bx=(w,h,d,x,y,z,mt)=>{const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mt||bodyM);o.position.set(x,y,z);o.castShadow=true;CG.add(o);return o};
+bx(4.3,.38,1.9,0,.5,0);bx(2.2,.32,1.7,-.5,.78,0);bx(1.45,.4,1.28,-.25,1.02,0,new THREE.MeshStandardMaterial({color:0x10151c,metalness:.9,roughness:.1}));
+bx(.5,.06,2.05,2.3,.27,0,dk);bx(.55,.07,1.9,-2.15,1.2,0,dk);bx(.3,.35,.08,-2.15,1,.6,dk);bx(.3,.35,.08,-2.15,1,-.6,dk);
+bx(.05,.1,1.3,-2.2,.82,0,new THREE.MeshBasicMaterial({color:0xff1a1a}));bx(.05,.08,.5,2.15,.55,.6,new THREE.MeshBasicMaterial({color:0xfff6d0}));bx(.05,.08,.5,2.15,.55,-.6,new THREE.MeshBasicMaterial({color:0xfff6d0}));
+const WG=[];for(let i=0;i<4;i++){const gW=new THREE.Group(),fr=i<2,r=Rw[i],wd=fr?.245:.295,tm=new THREE.Mesh(new THREE.CylinderGeometry(r,r,wd,24).rotateX(PI/2),dk),rm=new THREE.Mesh(new THREE.CylinderGeometry(r*.62,r*.62,wd+.02,10).rotateX(PI/2),new THREE.MeshStandardMaterial({color:0xb8c0c8,metalness:.9,roughness:.3}));tm.castShadow=true;tm.add(rm);gW.add(tm);gW.userData.tm=tm;
+gW.position.set(fr?aF:-bR,r,-(i%2?-1:1)*(fr?tf:trk)/2);CG.add(gW);WG.push(gW)}
+CG.rotation.order="YZX";S.add(CG);
+function rs(){const w=innerWidth,h=innerHeight;R3.setSize(w,h,false);CAM.aspect=w/h;CAM.updateProjectionMatrix()}addEventListener("resize",rs);rs();
+// ============ ENTRADA ============
+const K={},T={L:0,R:0,G:0,B:0};let camMode=0,mode=1,tel=innerWidth>760;const bt=(id,fn)=>$(id).addEventListener("click",e=>{fn();e.stopPropagation()});
+let AC,A={};function audio(){if(AC){if(AC.state!=="running")AC.resume();return}try{AC=new(window.AudioContext||window.webkitAudioContext)();const mk=t=>{const o=AC.createOscillator();o.type=t;o.start();return o},gn=v=>{const x=AC.createGain();x.gain.value=v;return x};
+A.o1=mk("sawtooth");A.o2=mk("square");A.o3=mk("triangle");A.ef=AC.createBiquadFilter();A.ef.type="lowpass";A.eg=gn(0);A.o1.connect(gn(.5)).connect(A.ef);A.o2.connect(gn(.16)).connect(A.ef);A.o3.connect(gn(.5)).connect(A.ef);A.ef.connect(A.eg).connect(AC.destination);
+const nb=AC.createBuffer(1,AC.sampleRate*2,AC.sampleRate),d=nb.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=M.random()*2-1;A.ns=AC.createBufferSource();A.ns.buffer=nb;A.ns.loop=true;A.ns.start();
+A.sf=AC.createBiquadFilter();A.sf.type="bandpass";A.sf.Q.value=5;A.sg=gn(0);A.ns.connect(A.sf).connect(A.sg).connect(AC.destination);A.sq=mk("triangle");A.sqg=gn(0);A.sq.connect(A.sqg).connect(AC.destination);
+A.wf=AC.createBiquadFilter();A.wf.type="lowpass";A.wg=gn(0);A.ns.connect(A.wf).connect(A.wg).connect(AC.destination);AC.resume()}catch(e){AC=null}}
+["pointerup","touchend","click","keydown"].forEach(ev=>addEventListener(ev,audio));
+function aud(V){if(!AC)return;if(AC.state==="suspended")AC.resume();const t=AC.currentTime,c=car,rpm=c.we*30/PI,f=rpm/60*3,s=c.sig,ld=.3+.7*c.th,sT=(p,v,k)=>p.setTargetAtTime(v,t,k);
+sT(A.o1.frequency,f,.02);sT(A.o2.frequency,f*2.01,.02);sT(A.o3.frequency,f*.5,.02);sT(A.ef.frequency,300+rpm/8300*1700*(.4+c.th*.8)+c.th*900,.04);sT(A.eg.gain,.06+.12*ld*(.5+rpm/16600),.03);
+const vg=cl((V-3)/5,0,1);sT(A.sg.gain,cl((s-1.7)*.25,0,.3)*vg,.05);sT(A.sf.frequency,500+s*380,.05);sT(A.sqg.gain,cl((s-1.25)*.16,0,.06)*(s<1.8?1:.5)*vg,.05);sT(A.sq.frequency,850+s*330,.05);sT(A.wg.gain,cl(V/90,0,1)*.07,.1);A.wf.frequency.value=400+V*8}
+addEventListener("keydown",e=>{audio();const k=e.key.toLowerCase();if(!K[k]){if(k==="e"||k==="shift")sh(1);if(k==="q"||k==="control")sh(-1);if(k==="x")rev();if(k==="c")bt0(0);if(k==="t")bt0(1);if(k==="v")bt0(2);if(k==="g")bt0(3);if(k==="m")bt0(4);if(k==="r")reset();if(k==="]")car.bb=M.min(.75,car.bb+.01);if(k==="[")car.bb=M.max(.45,car.bb-.01)}K[k]=1;if(k.startsWith("arrow")||k===" ")e.preventDefault()});addEventListener("keyup",e=>K[e.key.toLowerCase()]=0);
+const tb={};document.querySelectorAll(".b").forEach(b=>{b.addEventListener("pointerdown",e=>{audio();b.setPointerCapture(e.pointerId);const k=b.dataset.k;if(k==="U")sh(1);else if(k==="D")sh(-1);else if(k==="X")rev();else T[k]=1;b.style.borderColor="#3ddc97";e.preventDefault()});const up=()=>{T[b.dataset.k]=0;b.style.borderColor=""};b.addEventListener("pointerup",up);b.addEventListener("pointercancel",up)});
+function bt0(i){if(i===0)camMode=(camMode+1)%3;if(i===1){tel=!tel;$("#tel").style.display=tel?"block":"none"}if(i===2){car.assist=!car.assist;$("#k3").classList.toggle("on",car.assist)}if(i===3){car.auto=!car.auto;$("#k4").classList.toggle("on",car.auto)}if(i===4){mode=mode===1?2:1;$("#k5").classList.toggle("on",mode===2)}}
+["#k1","#k2","#k3","#k4","#k5"].forEach((id,i)=>bt(id,()=>{audio();bt0(i)}));bt("#k6",()=>reset());$("#tel").style.display=tel?"block":"none";
+function sh(d){const c=car;let ng=c.gear<0?(d>0?(M.abs(c.u)<2?1:-1):-1):cl(c.gear+d,1,6);if(ng!==c.gear){c.gear=ng;c.shT=.12;c.lastSh=simT}}
+function rev(){const c=car;if(M.abs(c.u)<2){c.gear=c.gear<0?1:-1;c.shT=.12;c.lastSh=simT}else toast("Pare o carro para engatar a ré")}
+let simT=0,steer=0,lastPad=0;
+function input(dt){const c=car,V=hy(c.u,c.v);let tS=(K.arrowleft||K.a||T.L?1:0)-(K.arrowright||K.d||T.R?1:0),tG=K.arrowup||K.w||T.G?1:0,tB=K.arrowdown||K.s||T.B?1:0,pad=0;
+const gpd=navigator.getGamepads?[...navigator.getGamepads()].find(Boolean):null;
+if(gpd){const ax=-(M.abs(gpd.axes[0])>.05?gpd.axes[0]:0),gg=gpd.buttons[7]?gpd.buttons[7].value:0,bb=gpd.buttons[6]?gpd.buttons[6].value:0;if(ax||gg||bb){pad=1;tS=ax;tG=gg;tB=bb}
+const up=gpd.buttons[5]&&gpd.buttons[5].pressed,dn=gpd.buttons[4]&&gpd.buttons[4].pressed;if(up&&!lastPad)sh(1);if(dn&&!(lastPad&2))sh(-1);lastPad=(up?1:0)|(dn?2:0);
+if(gpd.vibrationActuator&&performance.now()%80<17)gpd.vibrationActuator.playEffect("dual-rumble",{duration:60,strongMagnitude:cl(M.abs(c.ffb)/60,0,1),weakMagnitude:cl((c.sig-.9)*.6,0,1)}).catch(()=>0)}
+const sc=c.assist?M.min(1,2.55*9/(M.max(V,5)**2*.4)):1,rate=pad?30:(tS===0?4:2.2);steer+=cl(tS*sc-steer,-rate*dt,rate*dt);c.st=steer;c.dlt=steer*.4;
+c.th+=cl(tG-c.th,-8*dt,3.5*dt);c.br+=cl(tB-c.br,-8*dt,2.6*dt);
+if(c.auto&&c.gear>0&&simT-(c.lastSh||0)>.45){const rpm=c.we*30/PI;if(rpm>7700&&c.gear<6)sh(1);else if(rpm<3300&&c.gear>1)sh(-1)}}
+// ============ VOLTAS / TELEMETRIA ============
+const NB=120;let lapStart=null,armed=false,prevCi=N-4,cur=new Array(NB).fill(0),curT=new Array(NB).fill(0),ref=null,refT=null,best=null,last=null,lapNo=0,score=null,msgT=0;
+const fmt=t=>t==null?"--:--.---":(t/60|0)+":"+(t%60).toFixed(3).padStart(6,"0");
+function laps(){const c=car,ci=c.ci;if(ci>N*.4&&ci<N*.6)armed=true;
+if(prevCi>N*.85&&ci<N*.15&&c.u>0){if(lapStart!==null&&armed){const t=simT-lapStart;last=t;lapNo++;if(mode===2&&ref){let s=0,sr=0;for(let i=0;i<NB;i++){s+=M.abs(cur[i]-ref[i]);sr+=ref[i]}score=cl(100-220*s/sr,0,100)}
+if(best===null||t<best){best=t;ref=cur.slice();refT=curT.slice();toast("NOVO MELHOR "+fmt(t))}else toast("Volta "+fmt(t))}lapStart=simT;armed=false;cur=new Array(NB).fill(0);curT=new Array(NB).fill(0)}
+prevCi=ci;if(lapStart!==null){const b=M.floor(ci/N*NB);cur[b]=hy(c.u,c.v)*3.6;curT[b]=simT-lapStart}}
+function toast(s){$("#msg").textContent=s;msgT=3}
+// ============ HUD ============
+const tp=$("#tpc").getContext("2d"),tc=$("#tc").getContext("2d"),mc=$("#mc").getContext("2d"),gg=[],tcol=T=>T<70?"#3b7bff":T<85?"#38c6d9":T<=105?"#2fd16f":T<=120?"#ffa63d":"#ff3d3d";
+function mapInit(){let a=1e9,b=-1e9,cc=1e9,d=-1e9;for(let i=0;i<N;i++){a=M.min(a,TX[i]);b=M.max(b,TX[i]);cc=M.min(cc,TZ[i]);d=M.max(d,TZ[i])}mapInit.k=M.min(140/(b-a),140/(d-cc));mapInit.a=a;mapInit.d=d;mapInit.bg=document.createElement("canvas");mapInit.bg.width=mapInit.bg.height=160;const x=mapInit.bg.getContext("2d");x.strokeStyle="#cfd8e0";x.lineWidth=3;x.beginPath();for(let i=0;i<=N;i+=4){const k=i%N;x[i?"lineTo":"moveTo"](10+(TX[k]-a)*mapInit.k,10+(d-TZ[k])*mapInit.k)}x.stroke()}mapInit();
+function hud(V){const c=car,rpm=c.we*30/PI;$("#kmh").textContent=(V*3.6)|0;$("#gr").textContent=c.gear<0?"R":c.gear;$("#rp").textContent=rpm|0;const rb=$("#rpm div");rb.style.width=cl(rpm/8300*100,0,100)+"%";rb.style.background=rpm>7600?"#ff4d5a":"#3ddc97";
+$("#aer").innerHTML=`DF ${(c.df/1000).toFixed(1)} kN · RH ${(c.hrR*1000)|0} mm${c.bot?' <b style="color:#ff4d5a">RASPOU</b>':""}<br>FFB ${(c.ffb)|0} Nm · ${c.assist?"ASSIST":"HARDCORE"}`;
+const d=ref&&lapStart!==null?(simT-lapStart)-refT[M.floor(c.ci/N*NB)]:null;
+$("#lap").innerHTML=`${mode===1?"HOTLAP":"TELEMETRY CHALLENGE"} · V${lapNo}<br>Atual ${lapStart===null?"--:--.---":fmt(simT-lapStart)}<br>Última ${fmt(last)}<br>Melhor ${fmt(best)}${d!==null&&refT[M.floor(c.ci/N*NB)]>0?`<br><b style="color:${d>0?"#ff6b6b":"#3ddc97"}">Δ ${d>0?"+":""}${d.toFixed(2)}s</b>`:""}${mode===2?`<br>${ref?(score!=null?"Score "+score.toFixed(0)+"%":"Siga o fantasma cinza"):"Faça 2 voltas p/ gerar ref."}`:""}`;
+if(msgT>0){msgT-=1/60;if(msgT<=0)$("#msg").textContent=""}
+const mx=mapInit.bg;mc.clearRect(0,0,160,160);mc.drawImage(mx,0,0);mc.fillStyle="#ff4d5a";mc.beginPath();mc.arc(10+(c.x-mapInit.a)*mapInit.k,10+(mapInit.d-c.z)*mapInit.k,5,0,7);mc.fill();
+{const x=tp;x.clearRect(0,0,150,124);x.font="bold 11px system-ui";x.textAlign="center";const nm=["FL","FR","RL","RR"];
+for(let i=0;i<4;i++){const w=c.w[i],ox=(i%2)*76,oy=(i>>1)*62,od=w.y>0?[0,1,2]:[2,1,0];
+for(let j=0;j<3;j++){const tv=w.z[od[j]];x.fillStyle=tcol(tv);x.fillRect(ox+j*24,oy,23,40);x.fillStyle=(tv<70||tv>120)?"#fff":"#0a0f14";x.fillText(tv|0,ox+j*24+11.5,oy+24)}
+x.fillStyle="#fff";x.fillText(nm[i]+" "+w.P.toFixed(0)+"psi",ox+36,oy+53)}x.textAlign="left"}
+if(!tel)return;const x=tc;x.clearRect(0,0,300,200);x.font="10px system-ui";
+const nm=["FL","FR","RL","RR"];for(let i=0;i<4;i++){const w=c.w[i],ox=(i%2)*76,oy=(i>>1)*58,order=w.y>0?[0,1,2]:[2,1,0];for(let j=0;j<3;j++){x.fillStyle=tcol(w.z[order[j]]);x.fillRect(ox+j*23,oy,22,34)}
+x.fillStyle="#000a";x.fillRect(ox+23,oy+10,22,14);x.fillStyle="#fff";x.fillText((w.z[1]|0)+"°",ox+25,oy+21);x.fillStyle="#cfd8e0";x.fillText(`${nm[i]} ${w.P.toFixed(1)}psi`,ox,oy+45);x.fillText(`C${w.Tc|0} W${(w.wear*100).toFixed(0)}%`,ox,oy+55)}
+for(let i=0;i<4;i++){const w=c.w[i];w.hist.push(w.xm);if(w.hist.length>60)w.hist.shift();x.strokeStyle=i<2?"#7ec8ff":"#ffc27e";x.beginPath();w.hist.forEach((h,k)=>x[k?"lineTo":"moveTo"](158+k,16*i+8-h*.35));x.stroke();x.fillStyle="#cfd8e0";x.fillText((w.xm|0)+"mm "+w.xv.toFixed(1),222,16*i+11)}
+const cx=228,cy=132,rr=52;x.strokeStyle="#fff5";for(let k=1;k<=2;k++){x.beginPath();x.arc(cx,cy,rr*k/2.5,0,7);x.stroke()}x.beginPath();x.moveTo(cx-rr,cy);x.lineTo(cx+rr,cy);x.moveTo(cx,cy-rr);x.lineTo(cx,cy+rr);x.stroke();
+gg.push([c.ayf/g,c.axf/g]);if(gg.length>140)gg.shift();gg.forEach((p,k)=>{x.fillStyle=`rgba(61,220,151,${k/gg.length})`;x.fillRect(cx-p[0]*rr/2.5-1,cy-p[1]*rr/2.5-1,3,3)});
+x.fillStyle="#fff";x.fillText("G-G",cx-10,cy-rr-3);x.fillStyle="#cfd8e0";x.fillText(`${(c.ayf/g).toFixed(2)}g lat · ${(c.axf/g).toFixed(2)}g long`,160,200-2);
+x.strokeStyle="#fff3";x.strokeRect(0,126,150,70);x.fillStyle="#cfd8e0";x.fillText("velocidade vs ref (cinza)",3,138);
+for(const [arr,col] of[[ref,"#9aa5b1"],[cur,"#3ddc97"]]){if(!arr)continue;x.strokeStyle=col;x.beginPath();let st=0;arr.forEach((v,k)=>{if(v>0){x[st?"lineTo":"moveTo"](k*1.25,194-v*.2);st=1}});x.stroke()}
+x.fillStyle="#3ddc97";x.fillRect(0+0,118,c.th*40,3);x.fillStyle="#ff4d5a";x.fillRect(110,118,c.br*40,3)}
+// ============ LOOP ============
+let lt=performance.now(),acc=0,cyaw=0;const DT=.001,pw=new THREE.Vector3(),lk=new THREE.Vector3();reset();cyaw=car.psi;
+function frame(now){requestAnimationFrame(frame);const dtF=M.min((now-lt)/1000,.05);lt=now;const c=car;input(dtF);acc+=dtF;let n=0;while(acc>=DT&&n<60){step(DT);simT+=DT;acc-=DT;n++}thermal(dtF);laps();
+const V=hy(c.u,c.v),y=TY[c.ci];CG.position.set(c.x,y+.02,-c.z);const sl=M.atan(gr[c.ci]*(tx[c.ci]*cs(c.psi)+tz[c.ci]*sn(c.psi)));CG.rotation.set(c.ayf/g*.03,c.psi,c.axf/g*.025+sl,"YZX");
+for(let i=0;i<4;i++){const w=c.w[i],G=WG[i];G.rotation.y=w.d;w.ang-=c.om[i]*dtF;G.userData.tm.rotation.z=w.ang}
+const fw=[cs(c.psi),-sn(c.psi)],lf=[-sn(c.psi),-cs(c.psi)];pw.set(c.x,y,-c.z);cyaw+=M.atan2(sn(c.psi-cyaw),cs(c.psi-cyaw))*(1-ex(-4*dtF));const fc=[cs(cyaw),-sn(cyaw)];
+if(camMode===0){CAM.position.set(pw.x-fc[0]*7.2,pw.y+2.5,pw.z-fc[1]*7.2);lk.set(pw.x+fw[0]*7,pw.y+1,pw.z+fw[1]*7)}
+else if(camMode===1){CAM.position.set(pw.x+fw[0]*1.2,pw.y+1.18,pw.z+fw[1]*1.2);lk.set(pw.x+fw[0]*30,pw.y+.9,pw.z+fw[1]*30)}
+else{CAM.position.set(pw.x+fw[0]*.15+lf[0]*.35,pw.y+1.1,pw.z+fw[1]*.15+lf[1]*.35);lk.set(pw.x+fw[0]*30,pw.y+1,pw.z+fw[1]*30)}
+CAM.position.y+=c.zr[0]*3;CAM.lookAt(lk);CAM.fov=66+V*.18;CAM.updateProjectionMatrix();
+sun.position.set(pw.x+40,pw.y+70,pw.z+25);sun.target.position.copy(pw);aud(V);hud(V);R3.render(S,CAM)}
+requestAnimationFrame(frame);
+toast("Toque ACEL para sair · ASSIST desliga os auxílios (hardcore)");
+</script></body></html>

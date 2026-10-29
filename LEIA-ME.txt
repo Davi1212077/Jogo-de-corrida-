@@ -1,0 +1,4 @@
+1) Crie um repositorio no GitHub e envie TODO o conteudo desta pasta (inclusive a pasta .github).
+2) Aba Actions -> "Build APK" -> Run workflow (ou ele roda sozinho ao enviar).
+3) Quando terminar (uns 5 a 8 min), abra a execucao e baixe "apex-telemetry-apk" em Artifacts.
+4) Descompacte e instale o app-debug.apk (permita fontes desconhecidas).
